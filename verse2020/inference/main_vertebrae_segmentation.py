@@ -9,12 +9,12 @@ from glob import glob
 import SimpleITK as sitk
 import numpy as np
 import tensorflow as tf
-import utils.io.image
-import utils.io.landmark
-import utils.io.text
-import utils.np_image
-import utils.sitk_image
-import utils.sitk_np
+import MedicalDataAugmentationTool.utils.io.image as io_image
+import MedicalDataAugmentationTool.utils.io.landmark as io_landmark
+import MedicalDataAugmentationTool.utils.io.text as io_text
+import MedicalDataAugmentationTool.utils.np_image as np_image
+import MedicalDataAugmentationTool.utils.sitk_image as sitk_image
+import MedicalDataAugmentationTool.utils.sitk_np as sitk_np
 from dataset import Dataset
 from network import Unet
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
@@ -60,7 +60,7 @@ class MainLoop(MainLoopBase):
         images_files = sorted(glob(os.path.join(self.image_folder, '*.nii.gz')))
         self.image_id_list = list(map(lambda filename: os.path.basename(filename)[:-len('.nii.gz')], images_files))
         self.valid_landmarks_file = os.path.join(self.setup_folder, 'vertebrae_localization/valid_landmarks.csv')
-        self.valid_landmarks = utils.io.text.load_dict_csv(self.valid_landmarks_file, squeeze=False)
+        self.valid_landmarks = io_text.load_dict_csv(self.valid_landmarks_file, squeeze=False)
 
         self.landmark_labels = [i + 1 for i in range(25)] + [28]
         self.landmark_mapping = dict([(i, self.landmark_labels[i]) for i in range(26)])
@@ -159,22 +159,22 @@ class MainLoop(MainLoopBase):
                     max_index = transformation.TransformPoint(np.array(self.image_size, np.float64) * np.array(self.image_spacing, np.float64))
 
                     if self.save_output_images:
-                        utils.io.image.write_multichannel_np(image, self.output_folder_handler.path('output', image_id + '_' + landmark_id + '_input.mha'), output_normalization_mode='min_max', sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8, spacing=self.image_spacing, origin=origin)
-                        utils.io.image.write_multichannel_np(prediction, self.output_folder_handler.path('output', image_id + '_' + landmark_id + '_prediction.mha'), output_normalization_mode=(0, 1), sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8, spacing=self.image_spacing, origin=origin)
+                        io_image.write_multichannel_np(image, self.output_folder_handler.path('output', image_id + '_' + landmark_id + '_input.mha'), output_normalization_mode='min_max', sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8, spacing=self.image_spacing, origin=origin)
+                        io_image.write_multichannel_np(prediction, self.output_folder_handler.path('output', image_id + '_' + landmark_id + '_prediction.mha'), output_normalization_mode=(0, 1), sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8, spacing=self.image_spacing, origin=origin)
                     del image
                     prediction = prediction.astype(np.float32)
-                    prediction_resampled_sitk = utils.sitk_image.transform_np_output_to_sitk_input(output_image=prediction,
-                                                                                                   output_spacing=self.image_spacing,
-                                                                                                   channel_axis=channel_axis,
-                                                                                                   input_image_sitk=input_image,
-                                                                                                   transform=transformation,
-                                                                                                   interpolator='cubic',
-                                                                                                   output_pixel_type=sitk.sitkFloat32)
+                    prediction_resampled_sitk = sitk_image.transform_np_output_to_sitk_input(output_image=prediction,
+                                                                                             output_spacing=self.image_spacing,
+                                                                                             channel_axis=channel_axis,
+                                                                                             input_image_sitk=input_image,
+                                                                                             transform=transformation,
+                                                                                             interpolator='cubic',
+                                                                                             output_pixel_type=sitk.sitkFloat32)
                     del prediction
                     #del transformation
-                    prediction_resampled_np = utils.sitk_np.sitk_to_np(prediction_resampled_sitk[0])
+                    prediction_resampled_np = sitk_np.sitk_to_np(prediction_resampled_sitk[0])
                     if self.save_output_images:
-                        utils.io.image.write_multichannel_np(prediction_resampled_np, self.output_folder_handler.path('output', image_id + '_' + landmark_id + '_prediction_resampled.mha'), output_normalization_mode=(0, 1), is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8, spacing=prediction_resampled_sitk[0].GetSpacing(), origin=prediction_resampled_sitk[0].GetOrigin())
+                        io_image.write_multichannel_np(prediction_resampled_np, self.output_folder_handler.path('output', image_id + '_' + landmark_id + '_prediction_resampled.mha'), output_normalization_mode=(0, 1), is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8, spacing=prediction_resampled_sitk[0].GetSpacing(), origin=prediction_resampled_sitk[0].GetOrigin())
                     bb_start = np.floor(np.flip(origin / np.array(input_image.GetSpacing())))
                     bb_start = np.maximum(bb_start, [0, 0, 0])
                     bb_end = np.ceil(np.flip(max_index / np.array(input_image.GetSpacing())))
@@ -185,12 +185,12 @@ class MainLoop(MainLoopBase):
                     prediction_resampled_cropped_np = prediction_resampled_np[slices]
                     if filter_largest_cc:
                         prediction_thresh_cropped_np = (prediction_resampled_cropped_np > 0.5).astype(np.uint8)
-                        largest_connected_component = utils.np_image.largest_connected_component(prediction_thresh_cropped_np)
+                        largest_connected_component = np_image.largest_connected_component(prediction_thresh_cropped_np)
                         prediction_thresh_cropped_np[largest_connected_component == 1] = 0
                         prediction_resampled_cropped_np[prediction_thresh_cropped_np == 1] = 0
                     prediction_max_value_cropped_np = prediction_max_value_np[slices]
                     prediction_labels_cropped_np = prediction_labels_np[slices]
-                    prediction_max_index_np = utils.np_image.argmax(np.stack([prediction_max_value_cropped_np, prediction_resampled_cropped_np], axis=-1), axis=-1)
+                    prediction_max_index_np = np_image.argmax(np.stack([prediction_max_value_cropped_np, prediction_resampled_cropped_np], axis=-1), axis=-1)
                     prediction_max_index_new_np = prediction_max_index_np == 1
                     prediction_max_value_cropped_np[prediction_max_index_new_np] = prediction_resampled_cropped_np[prediction_max_index_new_np]
                     prediction_labels_cropped_np[prediction_max_index_new_np] = self.landmark_mapping[int(landmark_id)]
@@ -205,18 +205,18 @@ class MainLoop(MainLoopBase):
 
                 # delete to save memory
                 del prediction_max_value_np
-                prediction_labels = utils.sitk_np.np_to_sitk(prediction_labels_np)
+                prediction_labels = sitk_np.np_to_sitk(prediction_labels_np)
                 prediction_labels.CopyInformation(input_image)
                 del prediction_labels_np
-                utils.io.image.write(prediction_labels, self.output_folder_handler.path(image_id + '_seg.nii.gz'))
+                io_image.write(prediction_labels, self.output_folder_handler.path(image_id + '_seg.nii.gz'))
                 if self.save_output_images:
-                    prediction_labels_resampled = utils.sitk_np.sitk_to_np(utils.sitk_image.resample_to_spacing(prediction_labels, [1.0, 1.0, 1.0], 'nearest'))
+                    prediction_labels_resampled = sitk_np.sitk_to_np(sitk_image.resample_to_spacing(prediction_labels, [1.0, 1.0, 1.0], 'nearest'))
                     prediction_labels_resampled = np.flip(prediction_labels_resampled, axis=0)
-                    utils.io.image.write_multichannel_np(prediction_labels_resampled, self.output_folder_handler.path('output', image_id + '_seg.png'), channel_layout_mode='label_rgb', output_normalization_mode=(0, 1), image_layout_mode='max_projection', is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8)
-                    utils.io.image.write_multichannel_np(prediction_labels_resampled, self.output_folder_handler.path('output', image_id + '_seg_rgb.mha'), channel_layout_mode='label_rgb', output_normalization_mode=(0, 1), is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8)
-                    input_resampled = utils.sitk_np.sitk_to_np(utils.sitk_image.resample_to_spacing(input_image, [1.0, 1.0, 1.0], 'linear'))
+                    io_image.write_multichannel_np(prediction_labels_resampled, self.output_folder_handler.path('output', image_id + '_seg.png'), channel_layout_mode='label_rgb', output_normalization_mode=(0, 1), image_layout_mode='max_projection', is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8)
+                    io_image.write_multichannel_np(prediction_labels_resampled, self.output_folder_handler.path('output', image_id + '_seg_rgb.mha'), channel_layout_mode='label_rgb', output_normalization_mode=(0, 1), is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8)
+                    input_resampled = sitk_np.sitk_to_np(sitk_image.resample_to_spacing(input_image, [1.0, 1.0, 1.0], 'linear'))
                     input_resampled = np.flip(input_resampled, axis=0)
-                    utils.io.image.write_multichannel_np(input_resampled, self.output_folder_handler.path('output', image_id + '_input.png'), output_normalization_mode='min_max', image_layout_mode='max_projection', is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8)
+                    io_image.write_multichannel_np(input_resampled, self.output_folder_handler.path('output', image_id + '_input.png'), output_normalization_mode='min_max', image_layout_mode='max_projection', is_single_channel=True, sitk_image_output_mode='vector', data_format=self.data_format, image_type=np.uint8)
 
                 del prediction_labels
             except Exception:

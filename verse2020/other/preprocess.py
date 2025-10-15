@@ -54,15 +54,16 @@ def clamp(image):
     return clamped
 
 
-def process_image(filename, output_folder, sigma):
+def process_image(filename, output_folder, sigma, input_ext):
     """
     Reorient image at filename, smooth with sigma, clamp and save to output_folder.
     :param filename: The image filename.
     :param output_folder: The output folder.
     :param sigma: Sigma for smoothing.
+    :param input_ext: Input image extension.
     """
     basename = os.path.basename(filename)
-    basename_wo_ext = basename[:basename.find('.nii.gz')]
+    basename_wo_ext = basename[:basename.find(input_ext)]
     print(basename_wo_ext)
     ImageType = itk.Image[itk.SS, 3]
     reader = itk.ImageFileReader[ImageType].New()
@@ -84,11 +85,12 @@ if __name__ == '__main__':
     parser.add_argument('--image_folder', type=str, required=True)
     parser.add_argument('--output_folder', type=str, required=True)
     parser.add_argument('--sigma', type=float, required=True)
+    parser.add_argument("--input_ext", type=str, default=".nii.gz", help="Input image extension")
     parser_args = parser.parse_args()
     
     if not os.path.exists(parser_args.output_folder):
         os.makedirs(parser_args.output_folder)
     
-    filenames = glob(os.path.join(parser_args.image_folder, '*.nii.gz'))
+    filenames = glob(os.path.join(parser_args.image_folder, f'*{parser_args.input_ext}'))
     pool = multiprocessing.Pool(8)
-    pool.starmap(process_image, [(filename, parser_args.output_folder, parser_args.sigma) for filename in sorted(filenames)])
+    pool.starmap(process_image, [(filename, parser_args.output_folder, parser_args.sigma, parser_args.input_ext) for filename in sorted(filenames)])

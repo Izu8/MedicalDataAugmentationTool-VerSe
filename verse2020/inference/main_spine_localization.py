@@ -5,18 +5,16 @@ import sys
 import traceback
 from collections import OrderedDict
 from glob import glob
+print(sys.path)
 
 import numpy as np
 import tensorflow as tf
-import utils.io.image
-import utils.io.landmark
-import utils.io.text
-import utils.np_image
-import utils.sitk_image
-import utils.sitk_np
+import MedicalDataAugmentationTool.utils.io.image as io_image
+import MedicalDataAugmentationTool.utils.io.landmark as io_landmark
+import MedicalDataAugmentationTool.utils.io.text as io_text
 from dataset import Dataset
 from network import Unet
-from spine_localization_postprocessing import bb
+from verse2020.utils.spine_localization_postprocessing import bb
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from tensorflow_train_v2.train_loop import MainLoopBase
 from tensorflow_train_v2.utils.output_folder_handler import OutputFolderHandler
@@ -147,14 +145,14 @@ class MainLoop(MainLoopBase):
 
                 if self.save_output_images:
                     origin = np.array(transformation.TransformPoint(np.zeros(3, np.float64)))
-                    utils.io.image.write_multichannel_np(image,
+                    io_image.write_multichannel_np(image,
                                                          self.output_folder_handler.path('output', current_id + '_input.mha'),
                                                          output_normalization_mode='min_max',
                                                          data_format=self.data_format,
                                                          image_type=np.uint8,
                                                          spacing=self.image_spacing,
                                                          origin=origin)
-                    utils.io.image.write_multichannel_np(prediction,
+                    io_image.write_multichannel_np(prediction,
                                                          self.output_folder_handler.path('output', current_id + '_prediction.mha'),
                                                          output_normalization_mode=(0, 1),
                                                          data_format=self.data_format,
@@ -166,7 +164,7 @@ class MainLoop(MainLoopBase):
                 traceback.print_exc(file=sys.stdout)
                 pass
 
-        utils.io.text.save_dict_csv(bbs, self.output_folder_handler.path('bbs.csv'))
+        io_text.save_dict_csv(bbs, self.output_folder_handler.path('bbs.csv'))
 
 
 class dotdict(dict):

@@ -11,23 +11,21 @@ from glob import glob
 
 import numpy as np
 import tensorflow as tf
-import utils.io.image
-import utils.io.landmark
-import utils.io.text
-import utils.sitk_image
-import utils.sitk_np
+import MedicalDataAugmentationTool.utils.io.image as io_image
+import MedicalDataAugmentationTool.utils.io.landmark as io_landmark
+import MedicalDataAugmentationTool.utils.io.text as io_text
 from dataset import Dataset
 from network import SpatialConfigurationNet, Unet
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from tensorflow_train_v2.train_loop import MainLoopBase
 from tensorflow_train_v2.utils.output_folder_handler import OutputFolderHandler
 from tqdm import tqdm
-from utils.image_tiler import ImageTiler
-from utils.landmark.common import Landmark
-from utils.landmark.heatmap_test import HeatmapTest
-from utils.landmark.spine_postprocessing_graph import SpinePostprocessingGraph
-from utils.landmark.visualization.landmark_visualization_matplotlib import LandmarkVisualizationMatplotlib
-from vertebrae_localization_postprocessing import add_landmarks_from_neighbors, filter_landmarks_top_bottom, reshift_landmarks
+from MedicalDataAugmentationTool.utils.image_tiler import ImageTiler
+from MedicalDataAugmentationTool.utils.landmark.common import Landmark
+from MedicalDataAugmentationTool.utils.landmark.heatmap_test import HeatmapTest
+from MedicalDataAugmentationTool.utils.landmark.spine_postprocessing_graph import SpinePostprocessingGraph
+from MedicalDataAugmentationTool.utils.landmark.visualization.landmark_visualization_matplotlib import LandmarkVisualizationMatplotlib
+from verse2020.utils.vertebrae_localization_postprocessing import add_landmarks_from_neighbors, filter_landmarks_top_bottom, reshift_landmarks
 
 
 class MainLoop(MainLoopBase):
@@ -149,7 +147,7 @@ class MainLoop(MainLoopBase):
                 if landmark.is_valid:
                     current_valid_landmarks.append(landmark_id)
             valid_landmarks[image_id] = current_valid_landmarks
-        utils.io.text.save_dict_csv(valid_landmarks, filename)
+        io_text.save_dict_csv(valid_landmarks, filename)
 
     def test_cropped_image(self, dataset_entry):
         """
@@ -226,9 +224,9 @@ class MainLoop(MainLoopBase):
                                      min_max_value=0.05,
                                      smoothing_sigma=2.0)
 
-        with open('possible_successors.pickle', 'rb') as f:
+        with open(os.path.join(os.path.dirname(__file__), '../pickle/possible_successors.pickle'), 'rb') as f:
             possible_successors = pickle.load(f)
-        with open('units_distances.pickle', 'rb') as f:
+        with open(os.path.join(os.path.dirname(__file__), '../pickle/units_distances.pickle'), 'rb') as f:
             offsets_mean, distances_mean, distances_std = pickle.load(f)
         spine_postprocessing = SpinePostprocessingGraph(num_landmarks=self.num_landmarks,
                                                         possible_successors=possible_successors,
@@ -253,11 +251,11 @@ class MainLoop(MainLoopBase):
                 if self.save_output_images:
                     heatmap_normalization_mode = (-1, 1)
                     image_type = np.uint8
-                    utils.io.image.write_multichannel_np(image, self.output_folder_handler.path('output', current_id + '_input.mha'), output_normalization_mode='min_max', sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
-                    utils.io.image.write_multichannel_np(prediction, self.output_folder_handler.path('output', current_id + '_prediction.mha'), output_normalization_mode=heatmap_normalization_mode, sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
-                    utils.io.image.write_multichannel_np(prediction, self.output_folder_handler.path('output', current_id + '_prediction_rgb.mha'), output_normalization_mode=(0, 1), channel_layout_mode='channel_rgb', sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
-                    utils.io.image.write_multichannel_np(prediction_local, self.output_folder_handler.path('output', current_id + '_prediction_local.mha'), output_normalization_mode=heatmap_normalization_mode, sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
-                    utils.io.image.write_multichannel_np(prediction_spatial, self.output_folder_handler.path('output', current_id + '_prediction_spatial.mha'), output_normalization_mode=heatmap_normalization_mode, sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
+                    io_image.write_multichannel_np(image, self.output_folder_handler.path('output', current_id + '_input.mha'), output_normalization_mode='min_max', sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
+                    io_image.write_multichannel_np(prediction, self.output_folder_handler.path('output', current_id + '_prediction.mha'), output_normalization_mode=heatmap_normalization_mode, sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
+                    io_image.write_multichannel_np(prediction, self.output_folder_handler.path('output', current_id + '_prediction_rgb.mha'), output_normalization_mode=(0, 1), channel_layout_mode='channel_rgb', sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
+                    io_image.write_multichannel_np(prediction_local, self.output_folder_handler.path('output', current_id + '_prediction_local.mha'), output_normalization_mode=heatmap_normalization_mode, sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
+                    io_image.write_multichannel_np(prediction_spatial, self.output_folder_handler.path('output', current_id + '_prediction_spatial.mha'), output_normalization_mode=heatmap_normalization_mode, sitk_image_output_mode='vector', data_format=self.data_format, image_type=image_type, spacing=self.image_spacing, origin=origin)
 
                 local_maxima_landmarks = heatmap_maxima.get_landmarks(prediction, input_image, self.image_spacing, transformation)
                 curr_landmarks_no_postprocessing = [l[0] if len(l) > 0 else Landmark(coords=[np.nan] * 3, is_valid=False)  for l in local_maxima_landmarks]
@@ -285,8 +283,8 @@ class MainLoop(MainLoopBase):
                 traceback.print_exc(file=sys.stdout)
                 pass
 
-        utils.io.landmark.save_points_csv(landmarks, self.output_folder_handler.path('landmarks.csv'))
-        utils.io.landmark.save_points_csv(landmarks_no_postprocessing, self.output_folder_handler.path('landmarks_no_postprocessing.csv'))
+        io_landmark.save_points_csv(landmarks, self.output_folder_handler.path('landmarks.csv'))
+        io_landmark.save_points_csv(landmarks_no_postprocessing, self.output_folder_handler.path('landmarks_no_postprocessing.csv'))
         self.save_valid_landmarks_list(landmarks, self.output_folder_handler.path('valid_landmarks.csv'))
 
 
