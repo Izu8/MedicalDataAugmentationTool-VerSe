@@ -46,27 +46,41 @@ def main(args):
     
     # vertebrae segmentation
     vertebrae_segmentation_script = os.path.join(os.path.dirname(__file__), 'main_vertebrae_segmentation.py')
+    tmp_vertebrae_segmentation_dir = os.path.join(args.output_folder, 'vertebrae_segmentation')
+    os.makedirs(tmp_vertebrae_segmentation_dir, exist_ok=True)
     vertebrae_segmentation_cmd = [
         'python', vertebrae_segmentation_script,
         '--image_folder', tmp_preprocess_dir,
         '--setup_folder', args.output_folder,
         '--model_files', os.path.join(os.path.dirname(__file__), '../models/vertebrae_segmentation'),
-        '--output_folder', args.output_folder,
+        '--output_folder', tmp_vertebrae_segmentation_dir
     ]
     subprocess.run(vertebrae_segmentation_cmd)
     
+    # reorient predictions to original image space
+    postprocess_script = os.path.join(os.path.dirname(__file__), '../other/reorient_prediction_to_reference.py')
+    post_process_cmd = [
+        'python', postprocess_script,
+        '--image_folder', tmp_vertebrae_segmentation_dir,
+        '--reference_folder', args.image_folder,
+        '--output_folder', args.output_folder,
+        '--input_ext', args.input_ext,
+        '--output_ext', args.output_ext
+    ]
+    subprocess.run(post_process_cmd)
+
     if args.delete_tmp:
         shutil.rmtree(tmp_preprocess_dir, ignore_errors=False)
         shutil.rmtree(tmp_spine_localization_dir, ignore_errors=False)
         shutil.rmtree(tmp_vertebrae_localization_dir, ignore_errors=False)
-        shutil.rmtree(os.path.join(args.output_folder, "output"), ignore_errors=False)
-
+        shutil.rmtree(tmp_vertebrae_segmentation_dir, ignore_errors=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run inference for medical data augmentation.")
     parser.add_argument('--image_folder', type=str, required=True, help='Path to the folder containing input images.')
     parser.add_argument('--output_folder', type=str, required=True, help='Directory to save the output results.')
     parser.add_argument("--input_ext", type=str, default=".nii.gz", help="Input image extension")
+    parser.add_argument('--output_ext', type=str, default=".nii.gz", help='Output image extension.')
     parser.add_argument('--delete_tmp', action='store_true', help='Whether to delete temporary files after processing.')
     
     args = parser.parse_args()

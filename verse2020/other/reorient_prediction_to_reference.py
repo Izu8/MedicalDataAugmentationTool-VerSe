@@ -52,17 +52,17 @@ def copy_information(image, reference):
     return filter.GetOutput()
 
 
-def process_image(filename, output_folder, reference_folder):
+def process_image(filename, output_folder, reference_folder, input_ext, output_ext):
     basename = os.path.basename(filename)
     basename_wo_ext = basename[:basename.find('.nii.gz')]
     basename_wo_ext_and_seg = basename_wo_ext[:basename_wo_ext.find('_seg')]
     print(basename_wo_ext)
     image = itk.imread(filename)
-    reference = itk.imread(os.path.join(reference_folder, basename_wo_ext_and_seg + '.nii.gz'), itk.US)
+    reference = itk.imread(os.path.join(reference_folder, basename_wo_ext_and_seg + input_ext), itk.US)
     reoriented = cast(image, reference)
     reoriented = reorient_to_reference(reoriented, reference)
     reoriented = copy_information(reoriented, reference)
-    itk.imwrite(reoriented, os.path.join(output_folder, basename_wo_ext + '.nii.gz'))
+    itk.imwrite(reoriented, os.path.join(output_folder, basename_wo_ext + output_ext), compression=True)
 
 
 if __name__ == '__main__':
@@ -70,10 +70,12 @@ if __name__ == '__main__':
     parser.add_argument('--image_folder', type=str, required=True)
     parser.add_argument('--reference_folder', type=str, required=True)
     parser.add_argument('--output_folder', type=str, required=True)
+    parser.add_argument("--input_ext", type=str, default=".nii.gz", help="Input image extension")
+    parser.add_argument("--output_ext", type=str, default=".nii.gz", help="Output image extension")
     parser_args = parser.parse_args()
     if not os.path.exists(parser_args.output_folder):
         os.makedirs(parser_args.output_folder)
     filenames = glob(os.path.join(parser_args.image_folder, '*_seg.nii.gz'))
     pool = multiprocessing.Pool(8)
-    pool.starmap(process_image, [(filename, parser_args.output_folder, parser_args.reference_folder) for filename in sorted(filenames)])
+    pool.starmap(process_image, [(filename, parser_args.output_folder, parser_args.reference_folder, parser_args.input_ext, parser_args.output_ext) for filename in sorted(filenames)])
 
